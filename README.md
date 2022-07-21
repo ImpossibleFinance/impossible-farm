@@ -1,7 +1,3 @@
-# Master Contract Template
-
-This is for new contract Repo
-
 ## Setup
 
 ```
