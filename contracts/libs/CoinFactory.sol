@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.6.12;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "./MockCoin.sol";
+import '@openzeppelin/contracts/access/Ownable.sol';
+import './MockCoin.sol';
 
 contract CoinFactory is Ownable {
     event NewCoinCreated(address indexed coin);
@@ -24,7 +24,13 @@ contract CoinFactory is Ownable {
         uint256 supply,
         uint8 decimals
     ) external onlyOwner {
-        MockCoin newCoin = new MockCoin(name, symbol, supply, decimals, msg.sender);
+        MockCoin newCoin = new MockCoin(
+            name,
+            symbol,
+            supply,
+            decimals,
+            msg.sender
+        );
         emit NewCoinCreated(address(newCoin));
     }
 }
