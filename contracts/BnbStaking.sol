@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.6.12;
+pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "bsc-library/contracts/IBEP20.sol";
-import "bsc-library/contracts/SafeBEP20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 interface IWBNB {
     function deposit() external payable;
@@ -16,7 +16,7 @@ interface IWBNB {
 
 contract BnbStaking is Ownable {
     using SafeMath for uint256;
-    using SafeBEP20 for IBEP20;
+    using SafeERC20 for IERC20;
 
     // Info of each user.
     struct UserInfo {
@@ -27,14 +27,14 @@ contract BnbStaking is Ownable {
 
     // Info of each pool.
     struct PoolInfo {
-        IBEP20 lpToken; // Address of LP token contract.
+        IERC20 lpToken; // Address of LP token contract.
         uint256 allocPoint; // How many allocation points assigned to this pool. CAKEs to distribute per block.
         uint256 lastRewardBlock; // Last block number that CAKEs distribution occurs.
         uint256 accCakePerShare; // Accumulated CAKEs per share, times 1e12. See below.
     }
 
     // The REWARD TOKEN
-    IBEP20 public rewardToken;
+    IERC20 public rewardToken;
 
     // adminAddress
     address public adminAddress;
@@ -63,14 +63,14 @@ contract BnbStaking is Ownable {
     event EmergencyWithdraw(address indexed user, uint256 amount);
 
     constructor(
-        IBEP20 _lp,
-        IBEP20 _rewardToken,
+        IERC20 _lp,
+        IERC20 _rewardToken,
         uint256 _rewardPerBlock,
         uint256 _startBlock,
         uint256 _bonusEndBlock,
         address _adminAddress,
         address _wbnb
-    ) public {
+    ) {
         rewardToken = _rewardToken;
         rewardPerBlock = _rewardPerBlock;
         startBlock = _startBlock;

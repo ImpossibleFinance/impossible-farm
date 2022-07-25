@@ -4,14 +4,38 @@ pragma solidity ^0.8.4;
 import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import '@openzeppelin/contracts/access/Ownable.sol';
+import "./CakeToken.sol";
 
-// CakeToken with Governance.
-contract CakeToken is ERC20("PancakeSwap Token", "Cake"), Ownable {
+// SyrupBar with Governance.
+contract SyrupBar is ERC20("SyrupBar Token", "SYRUP"), Ownable {
     using SafeMath for uint256;
+
     /// @dev Creates `_amount` token to `_to`. Must only be called by the owner (MasterChef).
     function mint(address _to, uint256 _amount) public onlyOwner {
         _mint(_to, _amount);
         _moveDelegates(address(0), _delegates[_to], _amount);
+    }
+
+    function burn(address _from, uint256 _amount) public onlyOwner {
+        _burn(_from, _amount);
+        _moveDelegates(_delegates[_from], address(0), _amount);
+    }
+
+    // The CAKE TOKEN!
+    CakeToken public cake;
+
+    constructor(CakeToken _cake) {
+        cake = _cake;
+    }
+
+    // Safe cake transfer function, just in case if rounding error causes pool to not have enough CAKEs.
+    function safeCakeTransfer(address _to, uint256 _amount) public onlyOwner {
+        uint256 cakeBal = cake.balanceOf(address(this));
+        if (_amount > cakeBal) {
+            cake.transfer(_to, cakeBal);
+        } else {
+            cake.transfer(_to, _amount);
+        }
     }
 
     // Copied and modified from YAM code:

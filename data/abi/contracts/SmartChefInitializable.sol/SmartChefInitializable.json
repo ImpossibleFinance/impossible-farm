@@ -258,12 +258,12 @@
   {
     "inputs": [
       {
-        "internalType": "contract IBEP20",
+        "internalType": "contract IERC20",
         "name": "_stakedToken",
         "type": "address"
       },
       {
-        "internalType": "contract IBEP20",
+        "internalType": "contract IERC20",
         "name": "_rewardToken",
         "type": "address"
       },
@@ -412,7 +412,7 @@
     "name": "rewardToken",
     "outputs": [
       {
-        "internalType": "contract IBEP20",
+        "internalType": "contract IERC20",
         "name": "",
         "type": "address"
       }
@@ -425,7 +425,7 @@
     "name": "stakedToken",
     "outputs": [
       {
-        "internalType": "contract IBEP20",
+        "internalType": "contract IERC20",
         "name": "",
         "type": "address"
       }

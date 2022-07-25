@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.6.12;
+pragma solidity ^0.8.4;
 
 import '@openzeppelin/contracts/access/Ownable.sol';
 import './MockCoin.sol';
@@ -7,7 +7,7 @@ import './MockCoin.sol';
 contract CoinFactory is Ownable {
     event NewCoinCreated(address indexed coin);
 
-    constructor() public {
+    constructor() {
         //
     }
 
