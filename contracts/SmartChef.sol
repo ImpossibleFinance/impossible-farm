@@ -1,25 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
+import "hardhat/console.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import '@openzeppelin/contracts/security/ReentrancyGuard.sol';
 
+import "./libs/IERC20Extended.sol";
 import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
-import './libs/IERC20Extended.sol';
 
-contract SmartChefInitializable is Ownable, ReentrancyGuard {
+contract SmartChef is Ownable, ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    // The address of the smart chef factory
-    address public SMART_CHEF_FACTORY;
-
     // Whether a limit is set for users
     bool public hasUserLimit;
-
-    // Whether it is initialized
-    bool public isInitialized;
 
     // Accrued token per share
     uint256 public accTokenPerShare;
@@ -41,7 +36,6 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
 
     // The precision factor
     uint256 public PRECISION_FACTOR;
-
     // The reward token
     IERC20Extended public rewardToken;
 
@@ -65,34 +59,26 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
     event RewardsStop(uint256 blockNumber);
     event Withdraw(address indexed user, uint256 amount);
 
-    constructor() {
-        SMART_CHEF_FACTORY = msg.sender;
-    }
-
     /*
-     * @notice Initialize the contract
+     * @notice Constructor
      * @param _stakedToken: staked token address
      * @param _rewardToken: reward token address
      * @param _rewardPerSecond: reward per minute (in rewardToken)
      * @param _startTime: start time
      * @param _bonusEndTime: end time
      * @param _poolLimitPerUser: pool limit per user in stakedToken (if any, else 0)
-     * @param _admin: admin address with ownership
      */
-    function initialize(
+    constructor(
         IERC20 _stakedToken,
         IERC20Extended _rewardToken,
         uint256 _rewardPerSecond,
         uint256 _startTime,
         uint256 _bonusEndTime,
-        uint256 _poolLimitPerUser,
-        address _admin
-    ) external {
-        require(!isInitialized, "Already initialized");
-        require(msg.sender == SMART_CHEF_FACTORY, "Not factory");
-
-        // Make this contract initialized
-        isInitialized = true;
+        uint256 _poolLimitPerUser
+    ) {
+        require(_stakedToken.totalSupply() >= 0);
+        require(_rewardToken.totalSupply() >= 0);
+        require(_stakedToken != _rewardToken, "Tokens must be be different");
 
         stakedToken = _stakedToken;
         rewardToken = _rewardToken;
@@ -112,9 +98,6 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
 
         // Set the lastRewardTime as the startTime
         lastRewardTime = startTime;
-
-        // Transfer ownership to the admin address who becomes owner of the contract
-        transferOwnership(_admin);
     }
 
     /*
@@ -294,7 +277,9 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
      * @notice Update reward variables of the given pool to be up-to-date.
      */
     function _updatePool() internal {
-        require(block.timestamp >= lastRewardTime, "Timestamp is too early");
+        if (block.timestamp < lastRewardTime) {
+            return;
+        }
 
         uint256 stakedTokenSupply = stakedToken.balanceOf(address(this));
 

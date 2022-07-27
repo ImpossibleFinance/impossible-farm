@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import { parseEther } from 'ethers/lib/utils'
 import { artifacts, contract } from 'hardhat'
 
