@@ -13,9 +13,13 @@ contract SmartChef is Ownable, ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
+    // seconds in 10 years
+    uint64 constant TEN_YEARS = 315569260;
+
     // Whether a limit is set for users
     bool public hasUserLimit;
 
+    bool public isVesting;
     // Accrued token per share
     uint256 public accTokenPerShare;
 
@@ -45,9 +49,23 @@ contract SmartChef is Ownable, ReentrancyGuard {
     // Info of each user that stakes tokens (stakedToken)
     mapping(address => UserInfo) public userInfo;
 
+    // cliff vesting time and percentage
+    Cliff[] public cliffPeriod;
+
     struct UserInfo {
         uint256 amount; // How many staked tokens the user has provided
         uint256 rewardDebt; // Reward debt
+        uint256 lastClaimTime; // The previous timestamp of the user claiming the reward
+    }
+
+    // store how many percentage of the token can be claimed at a certain cliff date
+    struct Cliff {
+        // the start date when the percentage of token can be claimed
+        uint256 startTime;
+        // the end date when the percentage of token can be claimed
+        uint256 endTime;
+        // the percentage token that can be claimed
+        uint8 pct;
     }
 
     event AdminTokenRecovery(address tokenRecovered, uint256 amount);
@@ -114,7 +132,7 @@ contract SmartChef is Ownable, ReentrancyGuard {
         _updatePool();
 
         if (user.amount > 0) {
-            uint256 pending = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
+            uint256 pending = getReward(user);
             if (pending > 0) {
                 require(rewardToken.transferFrom(address(this), address(msg.sender), pending), "Transfer failed");
             }
@@ -140,7 +158,7 @@ contract SmartChef is Ownable, ReentrancyGuard {
 
         _updatePool();
 
-        uint256 pending = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
+        uint256 pending = getReward(user);
 
         if (_amount > 0) {
             user.amount = user.amount.sub(_amount);
@@ -308,4 +326,74 @@ contract SmartChef is Ownable, ReentrancyGuard {
             return bonusEndTime.sub(_from);
         }
     }
+
+    function setVesting(
+        uint256[] calldata startTimes,
+        uint256[] calldata endTimes,
+        uint8[] calldata pct
+    ) public onlyOwner {
+        require(block.timestamp < startTime, "Pool has started");
+        // lengths of startTimes, endTime and pct must be equal
+        require((startTimes.length == pct.length) && (startTimes.length == endTimes.length), "startTime, endTIme and pct must match");
+
+        // unset vesting if input is empyty
+        if (startTimes.length == 0) {
+            delete cliffPeriod;
+            isVesting = false;
+        }
+
+        require(startTimes.length <= 100, "Input length must be less than 100");
+
+        // clear the past entry
+        delete cliffPeriod;
+
+        uint256 maxDate;
+        uint8 totalPct;
+        require(startTimes[0] > bonusEndTime, "First claim time must be before end time");
+        for (uint i = 0; i < startTimes.length; i += 2) {
+            require(maxDate < startTimes[i], "Dates must be in ascending order");
+            require(startTimes[i] < endTimes[i], "Start time must be earlier than end time");
+            maxDate = startTimes[i];
+            totalPct += pct[i];
+            cliffPeriod.push(Cliff(startTimes[i], endTimes[i], pct[i]));
+        }
+        require(bonusEndTime > maxDate - TEN_YEARS, "End time has to be within 10 years");
+        // pct is the release percentage, with a precision of 1%. Thus, the sum of all elements of pct must be equal to 100
+        require(totalPct == 100, "Total input percentage must equal to 100");
+    }
+
+    /*
+     * @notice Calculate reward
+     */
+    function getReward(UserInfo memory user) public view returns (uint256) {
+        if (isVesting) {
+            uint256 cliffPeriodLength = cliffPeriod.length;
+            if (cliffPeriodLength != 0 && cliffPeriod[cliffPeriodLength - 1].endTime > block.timestamp) {
+                uint8 claimablePct;
+                for (uint8 i; i < cliffPeriodLength; i++) {
+                    // if the cliff timestamp has been passed, add the claimable percentage
+                    if (cliffPeriod[i].startTime > block.timestamp) { break; }
+                    if (user.lastClaimTime < cliffPeriod[i].endTime) {
+                        claimablePct += cliffPeriod[i].pct;
+                    }
+                }
+                // current claimable = total * claimiable percentage
+                if (claimablePct == 0) {
+                    return 0;
+                }
+                return user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt) * claimablePct / 100;
+            }
+            // users can get all of the tokens after vestingEndTime
+            return user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
+        }
+        return user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
+    }
+
+    function _sendReward(address userAddress) internal {
+        UserInfo storage user = userInfo[userAddress];
+        uint256 pending = getReward(user);
+        user.lastClaimTime = block.timestamp;
+        require(rewardToken.transferFrom(address(this), address(msg.sender), pending), "Transfer failed");
+    }
+    
 }
