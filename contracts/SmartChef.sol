@@ -116,7 +116,7 @@ contract SmartChef is Ownable, ReentrancyGuard {
         if (user.amount > 0) {
             uint256 pending = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
             if (pending > 0) {
-                require(rewardToken.transferFrom(address(this), address(msg.sender), pending), "Transfer failed");
+                require(rewardToken.transfer(address(msg.sender), pending), "Transfer failed");
             }
         }
 
@@ -148,7 +148,7 @@ contract SmartChef is Ownable, ReentrancyGuard {
         }
 
         if (pending > 0) {
-            require(rewardToken.transferFrom(address(this), address(msg.sender), pending), "Transfer failed");
+            require(rewardToken.transfer(address(msg.sender), pending), "Transfer failed");
         }
 
         user.rewardDebt = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR);
@@ -178,7 +178,7 @@ contract SmartChef is Ownable, ReentrancyGuard {
      * @dev Only callable by owner. Needs to be for emergency.
      */
     function emergencyRewardWithdraw(uint256 _amount) external onlyOwner {
-        require(rewardToken.transferFrom(address(this), address(msg.sender), _amount), "Transfer failed");
+        require(rewardToken.transfer(address(msg.sender), _amount), "Transfer failed");
     }
 
     /**

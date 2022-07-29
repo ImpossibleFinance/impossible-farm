@@ -5,14 +5,11 @@ import { artifacts, contract } from 'hardhat'
 
 import { assert } from 'chai'
 import { expectEvent, expectRevert, time } from '@openzeppelin/test-helpers'
-import { getBlockTime, minePause, mineStart } from './helpers'
+import { getBlockTime, minePause, mineStart, ONE_BILLION } from './helpers'
 import { expect } from 'chai'
 
-const MockBEP20 = artifacts.require('./libs/MockBEP20.sol')
 const MockERC20 = artifacts.require('./libs/MockERC20.sol')
 const SmartChef = artifacts.require('./SmartChef.sol')
-
-const ONE_BILLION = 1000000000
 
 contract(
   'Smart Chef V2',
@@ -34,19 +31,21 @@ contract(
       startTime = (await getBlockTime()) + 10000
       endTime = startTime + 400
 
-      mockCAKE = await MockBEP20.new(
+      mockCAKE = await MockERC20.new(
         'Mock CAKE',
         'CAKE',
         parseEther('1000000'),
+        18,
         {
           from: alice,
         }
       )
 
-      mockPT = await MockBEP20.new(
+      mockPT = await MockERC20.new(
         'Mock Pool Token 1',
         'PT1',
         parseEther(String(ONE_BILLION)),
+        18,
         {
           from: alice,
         }
@@ -60,6 +59,7 @@ contract(
         endTime,
         poolLimitPerUser
       )
+
     })
 
     describe('SMART CHEF #1 - NO POOL LIMIT', async () => {
@@ -91,6 +91,7 @@ contract(
         assert.equal(await smartChef.hasUserLimit(), false)
 
         // Transfer PT token to the contract (400 blocks with 10 PT/block)
+        // await mockPT.approve()
         await mockPT.transfer(smartChef.address, parseEther(String(ONE_BILLION / 2)), {
           from: alice,
         })
@@ -141,6 +142,7 @@ contract(
       })
 
       it('Carol can withdraw', async () => {
+        await mockPT.approve(smartChef.address, ONE_BILLION, { from: carol})
         result = await smartChef.withdraw(parseEther('50'), { from: carol })
         expectEvent(result, 'Withdraw', {
           user: carol,
@@ -216,10 +218,11 @@ contract(
 
     describe('SMART CHEF #2 - POOL LIMIT', async () => {
       it('Contract is deployed', async () => {
-        mockPT = await MockBEP20.new(
+        mockPT = await MockERC20.new(
           'Mock Pool Token 2',
           'PT2',
           parseEther('2000'),
+          18,
           {
             from: alice,
           }
@@ -286,6 +289,8 @@ contract(
         )
 
         // Admin withdraws half of the reward
+        await mockPT.approve(smartChef2.address, ONE_BILLION, { from: alice})
+        await mockCAKE.approve(smartChef2.address, ONE_BILLION, { from: alice})
         await smartChef2.emergencyRewardWithdraw(parseEther('1000'), {
           from: alice,
         })

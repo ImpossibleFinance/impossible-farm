@@ -1,5 +1,7 @@
 import { ethers, network } from 'hardhat'
 
+export const ONE_BILLION = 1000000000
+
 export const getBlockTime = async (): Promise<number> => {
   // current block number
   const currBlockNum = await ethers.provider.getBlockNumber()

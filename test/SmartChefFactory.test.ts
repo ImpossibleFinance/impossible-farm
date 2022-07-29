@@ -5,13 +5,11 @@ import { artifacts, contract } from 'hardhat'
 
 import { assert } from 'chai'
 import { expectEvent, expectRevert, time } from '@openzeppelin/test-helpers'
-import { getBlockTime } from './helpers'
+import { getBlockTime, approveAll, ONE_BILLION } from './helpers'
 
-const MockBEP20 = artifacts.require('./libs/MockBEP20.sol')
+const MockERC20 = artifacts.require('./libs/MockERC20.sol')
 const SmartChefInitializable = artifacts.require('./SmartChefInitializable.sol')
 const SmartChefFactory = artifacts.require('./SmartChefFactory.sol')
-
-const ONE_BILLION = 1000000000
 
 contract(
   'Smart Chef Factory',
@@ -32,19 +30,21 @@ contract(
       startTime = (await getBlockTime()) + 10000
       endTime = startTime + 400
 
-      mockCAKE = await MockBEP20.new(
+      mockCAKE = await MockERC20.new(
         'Mock CAKE',
         'CAKE',
         parseEther('1000000'),
+        18,
         {
           from: alice,
         }
       )
 
-      mockPT = await MockBEP20.new(
+      mockPT = await MockERC20.new(
         'Mock Pool Token 1',
         'PT1',
         parseEther(String(ONE_BILLION)),
+        18,
         {
           from: alice,
         }
