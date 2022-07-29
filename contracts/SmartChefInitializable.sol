@@ -41,7 +41,6 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
 
     // The precision factor
     uint256 public PRECISION_FACTOR;
-
     // The reward token
     IERC20Extended public rewardToken;
 
@@ -294,7 +293,9 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
      * @notice Update reward variables of the given pool to be up-to-date.
      */
     function _updatePool() internal {
-        require(block.timestamp >= lastRewardTime, "Timestamp is too early");
+        if (block.timestamp < lastRewardTime) {
+            return;
+        }
 
         uint256 stakedTokenSupply = stakedToken.balanceOf(address(this));
 

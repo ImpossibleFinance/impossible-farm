@@ -1,16 +1,18 @@
 // @ts-nocheck
 
 import { parseEther } from 'ethers/lib/utils'
-import { artifacts, contract, network } from 'hardhat'
+import { artifacts, contract } from 'hardhat'
 
 import { assert } from 'chai'
-import { BN, expectEvent, expectRevert, time } from '@openzeppelin/test-helpers'
-import { getBlockTime, minePause, mineStart, setTime } from './helpers'
+import { expectEvent, expectRevert, time } from '@openzeppelin/test-helpers'
+import { getBlockTime, minePause, mineStart } from './helpers'
 import { expect } from 'chai'
 
 const MockBEP20 = artifacts.require('./libs/MockBEP20.sol')
 const MockERC20 = artifacts.require('./libs/MockERC20.sol')
 const SmartChef = artifacts.require('./SmartChef.sol')
+
+const ONE_BILLION = 1000000000
 
 contract(
   'Smart Chef V2',
@@ -18,7 +20,6 @@ contract(
     // Contracts
     let mockCAKE, mockPT, smartChef, smartChef2
 
-    let blockNumber
 
     let startTime
     let endTime
@@ -30,7 +31,6 @@ contract(
     let result: any
 
     before(async () => {
-      blockNumber = await time.latestBlock()
       startTime = (await getBlockTime()) + 10000
       endTime = startTime + 400
 
@@ -46,7 +46,7 @@ contract(
       mockPT = await MockBEP20.new(
         'Mock Pool Token 1',
         'PT1',
-        parseEther('1000000000000000000000000'),
+        parseEther(String(ONE_BILLION)),
         {
           from: alice,
         }
@@ -90,14 +90,14 @@ contract(
         )
         assert.equal(await smartChef.hasUserLimit(), false)
 
-        // Transfer 4000 PT token to the contract (400 blocks with 10 PT/block)
-        await mockPT.transfer(smartChef.address, parseEther('1000000000000000000000000'), {
+        // Transfer PT token to the contract (400 blocks with 10 PT/block)
+        await mockPT.transfer(smartChef.address, parseEther(String(ONE_BILLION / 2)), {
           from: alice,
         })
       })
 
       it('Users deposit', async () => {
-        for (let thisUser of [bob, carol, david, erin]) {
+        for (const thisUser of [bob, carol, david, erin]) {
           await mockCAKE.mintTokens(parseEther('1000'), { from: thisUser })
           await mockCAKE.approve(smartChef.address, parseEther('1000'), {
             from: thisUser,
@@ -202,15 +202,14 @@ contract(
       // it('Advance to end of IFO', async () => {
       //   await time.increaseTo(endTime)
 
-      //   for (let thisUser of [bob, david, erin]) {
+      //   for (const thisUser of [bob, david, erin]) {
       //     await smartChef.withdraw(parseEther('100'), { from: thisUser })
       //   }
       //   await smartChef.withdraw(parseEther('50'), { from: carol })
 
-      //   // 0.000000001 PT token
-      //   assert.isAtMost(
+      //   assert.isBelow(
       //     Number(await mockPT.balanceOf(smartChef.address)),
-      //     1000000000
+      //     parseInt(ONE_BILLION)
       //   )
       // })
     })
@@ -227,7 +226,6 @@ contract(
         )
 
         rewardPerSecond = parseEther('10')
-        blockNumber = await time.latestBlock()
         startTime = (await getBlockTime() + 10000)
         endTime = startTime + 200
         poolLimitPerUser = parseEther('2')
@@ -269,7 +267,7 @@ contract(
         )
         assert.equal(await smartChef2.hasUserLimit(), true)
 
-        // Transfer 4000 PT token to the contract (200 blocks with 10 PT/block)
+        // Transfer PT token to the contract (200 blocks with 10 PT/block)
         await mockPT.transfer(smartChef2.address, parseEther('2000'), {
           from: alice,
         })
@@ -341,7 +339,7 @@ contract(
       })
 
       it('Users deposit', async () => {
-        for (let thisUser of [carol, david, erin]) {
+        for (const thisUser of [carol, david, erin]) {
           await mockCAKE.approve(smartChef2.address, parseEther('100'), {
             from: thisUser,
           })
@@ -441,16 +439,15 @@ contract(
       // it('Advance to end of IFO', async () => {
       //   await time.increaseTo(endTime)
 
-      //   for (let thisUser of [carol, david, erin]) {
+      //   for (const thisUser of [carol, david, erin]) {
       //     await smartChef2.withdraw(parseEther('2'), { from: thisUser })
       //   }
 
       //   await smartChef2.withdraw(parseEther('60'), { from: bob })
 
-      //   // 0.000000001 PT token
       //   assert.isAtMost(
       //     Number(await mockPT.balanceOf(smartChef2.address)),
-      //     1000000000
+      //     parseInt(ONE_BILLION)
       //   )
       // })
     })
@@ -588,7 +585,7 @@ contract(
               from: alice,
             }
           ),
-          "function selector was not recognized and there's no fallback function"
+          'function selector was not recognized and there\'s no fallback function'
         )
 
         await expectRevert(
