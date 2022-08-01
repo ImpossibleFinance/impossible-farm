@@ -5,7 +5,7 @@ import { artifacts, contract } from 'hardhat'
 
 import { assert } from 'chai'
 import { expectEvent, expectRevert, time } from '@openzeppelin/test-helpers'
-import { getBlockTime, approveAll, ONE_BILLION } from './helpers'
+import { getBlockTime, ONE_BILLION } from './helpers'
 
 const MockERC20 = artifacts.require('./libs/MockERC20.sol')
 const SmartChefInitializable = artifacts.require('./SmartChefInitializable.sol')
@@ -204,11 +204,11 @@ contract(
 
       it('Cannot change after start reward per block, nor start block or end block', async () => {
         await expectRevert(
-          smartChef.updateRewardPerBlock(parseEther('1'), { from: alice }),
+          smartChef.updateRewardPerSecond(parseEther('1'), { from: alice }),
           'Pool has started'
         )
         await expectRevert(
-          smartChef.updateStartAndEndBlocks('1', '10', { from: alice }),
+          smartChef.updateStartAndEndTime('1', '10', { from: alice }),
           'Pool has started'
         )
       })
@@ -259,7 +259,7 @@ contract(
           'Tokens must be be different'
         )
 
-        await expectRevert(
+        await expectRevert.unspecified(
           smartChefFactory.deployPool(
             mockCAKE.address,
             smartChef.address,
@@ -269,11 +269,11 @@ contract(
             poolLimitPerUser,
             alice,
             { from: alice }
-          ),
-          'function selector was not recognized and there\'s no fallback function'
+          )
+          // 'function selector was not recognized and there\'s no fallback function'
         )
 
-        await expectRevert(
+        await expectRevert.unspecified(
           smartChefFactory.deployPool(
             alice,
             mockCAKE.address,
@@ -283,8 +283,8 @@ contract(
             poolLimitPerUser,
             alice,
             { from: alice }
-          ),
-          'function call to a non-contract account'
+          )
+          // 'function call to a non-contract account'
         )
       })
     })

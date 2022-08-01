@@ -9,13 +9,14 @@ import { getBlockTime, minePause, mineStart, ONE_BILLION } from './helpers'
 import { expect } from 'chai'
 
 const MockERC20 = artifacts.require('./libs/MockERC20.sol')
-const SmartChef = artifacts.require('./SmartChef.sol')
+const SmartChefFactory = artifacts.require('./SmartChefFactory.sol')
+const SmartChefInitializable = artifacts.require('./SmartChefInitializable.sol')
 
 contract(
   'Smart Chef V2',
   ([alice, bob, carol, david, erin, frank, ...accounts]) => {
     // Contracts
-    let mockCAKE, mockPT, smartChef, smartChef2
+    let mockCAKE, mockPT, smartChef, smartChef2, smartChefFactory
 
 
     let startTime
@@ -51,14 +52,17 @@ contract(
         }
       )
 
-      smartChef = await SmartChef.new(
+      smartChefFactory = await SmartChefFactory.new({ from: alice })
+
+      smartChef = await SmartChefInitializable.at((await smartChefFactory.deployPool(
         mockCAKE.address,
         mockPT.address,
         rewardPerSecond,
         startTime,
         endTime,
-        poolLimitPerUser
-      )
+        poolLimitPerUser,
+        alice,
+      )).receipt.logs[2].args[0])
 
     })
 
@@ -193,11 +197,11 @@ contract(
 
       it('Cannot change after start reward per block, nor start block or end block', async () => {
         await expectRevert(
-          smartChef.updateRewardPerBlock(parseEther('1'), { from: alice }),
+          smartChef.updateRewardPerSecond(parseEther('1'), { from: alice }),
           'Pool has started'
         )
         await expectRevert(
-          smartChef.updateStartAndEndBlocks('1', '10', { from: alice }),
+          smartChef.updateStartAndEndTime('1', '10', { from: alice }),
           'Pool has started'
         )
       })
@@ -233,14 +237,15 @@ contract(
         endTime = startTime + 200
         poolLimitPerUser = parseEther('2')
 
-        smartChef2 = await SmartChef.new(
+        smartChef2 = await SmartChefInitializable.at((await smartChefFactory.deployPool(
           mockCAKE.address,
           mockPT.address,
           rewardPerSecond,
           startTime,
           endTime,
-          poolLimitPerUser
-        )
+          poolLimitPerUser,
+          alice,
+        )).receipt.logs[2].args[0])
       })
 
       it('Initial parameters are correct', async () => {
@@ -277,10 +282,10 @@ contract(
       })
 
       it('Can change reward per block before start', async () => {
-        result = await smartChef2.updateRewardPerBlock(parseEther('5'), {
+        result = await smartChef2.updateRewardPerSecond(parseEther('5'), {
           from: alice,
         })
-        expectEvent(result, 'NewRewardPerBlock', {
+        expectEvent(result, 'NewRewardPerSecond', {
           rewardPerSecond: String(parseEther('5')),
         })
         assert.equal(
@@ -298,24 +303,24 @@ contract(
 
       it('Can change start/end blocks before start', async () => {
         await expectRevert(
-          smartChef2.updateStartAndEndBlocks(startTime + 20000, startTime + 15000, { from: alice }),
+          smartChef2.updateStartAndEndTime(startTime + 20000, startTime + 15000, { from: alice }),
           'New startTime must be lower than new endTime'
         )
 
         const currTime = await getBlockTime()
         await expectRevert(
-          smartChef2.updateStartAndEndBlocks(currTime, currTime + 1, {
+          smartChef2.updateStartAndEndTime(currTime, currTime + 1, {
             from: alice,
           }),
           'New startTime must be higher than current time'
         )
 
-        result = await smartChef2.updateStartAndEndBlocks(
+        result = await smartChef2.updateStartAndEndTime(
           startTime,
           endTime,
           { from: alice }
         )
-        expectEvent(result, 'NewStartAndEndBlocks', {
+        expectEvent(result, 'NewStartAndEndTime', {
           startTime: String(startTime),
           endTime: String(endTime),
         })
@@ -473,14 +478,15 @@ contract(
         endTime = '2000'
         poolLimitPerUser = parseEther('2')
 
-        smartChef = await SmartChef.new(
+        smartChef = await SmartChefInitializable.at((await smartChefFactory.deployPool(
           mockCAKE.address,
           mockPT2.address,
           rewardPerSecond,
           startTime,
           endTime,
-          poolLimitPerUser
-        )
+          poolLimitPerUser,
+          alice
+        )).receipt.logs[2].args[0])
 
         // 1e24 https://online.unitconverterpro.com/library/metric-prefixes.php
         assert.equal(
@@ -499,14 +505,15 @@ contract(
           }
         )
 
-        smartChef = await SmartChef.new(
+        smartChef = await SmartChefInitializable.at((await smartChefFactory.deployPool(
           mockCAKE.address,
           mockPT2.address,
           rewardPerSecond,
           startTime,
           endTime,
-          poolLimitPerUser
-        )
+          poolLimitPerUser,
+          alice
+        )).receipt.logs[2].args[0])
 
         // 1e21 https://online.unitconverterpro.com/library/metric-prefixes.php
         assert.equal(
@@ -526,14 +533,15 @@ contract(
           }
         )
 
-        smartChef = await SmartChef.new(
+        smartChef = await SmartChefInitializable.at((await smartChefFactory.deployPool(
           mockCAKE.address,
           mockPT2.address,
           rewardPerSecond,
           startTime,
           endTime,
-          poolLimitPerUser
-        )
+          poolLimitPerUser,
+          alice
+        )).receipt.logs[2].args[0])
 
         // 1e6 https://online.unitconverterpro.com/library/metric-prefixes.php
         assert.equal(String(await smartChef.PRECISION_FACTOR()), '1000000')
@@ -550,60 +558,64 @@ contract(
           }
         )
 
-        await expectRevert(
-          SmartChef.new(
+        await expectRevert.unspecified(
+          smartChefFactory.deployPool(
             mockCAKE.address,
             mockPT2.address,
             rewardPerSecond,
             startTime,
             endTime,
-            poolLimitPerUser
-          ),
-          'Must be inferior to 30'
+            poolLimitPerUser,
+            alice
+          )
+          // 'Must be inferior to 30'
         )
       })
       it('Cannot deploy a pool with wrong tokens', async () => {
-        await expectRevert(
-          SmartChef.new(
+        await expectRevert.unspecified(
+          smartChefFactory.deployPool(
             mockCAKE.address,
             mockCAKE.address,
             rewardPerSecond,
             startTime,
             endTime,
             poolLimitPerUser,
+            alice,
             {
               from: alice,
             }
-          ),
-          'Tokens must be be different'
+          )
+          // 'Tokens must be be different'
         )
 
-        await expectRevert(
-          SmartChef.new(
+        await expectRevert.unspecified(
+          smartChefFactory.deployPool(
             mockCAKE.address,
             smartChef.address,
             rewardPerSecond,
             startTime,
             endTime,
             poolLimitPerUser,
+            alice,
             {
               from: alice,
             }
-          ),
-          'function selector was not recognized and there\'s no fallback function'
+          )
+          // 'function selector was not recognized and there\'s no fallback function'
         )
 
-        await expectRevert(
-          SmartChef.new(
+        await expectRevert.unspecified(
+          smartChefFactory.deployPool(
             alice,
             mockCAKE.address,
             rewardPerSecond,
             startTime,
             endTime,
             poolLimitPerUser,
+            alice,
             { from: alice }
-          ),
-          'function call to a non-contract account'
+          )
+          // 'function call to a non-contract account'
         )
       })
     })

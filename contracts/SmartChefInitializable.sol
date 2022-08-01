@@ -58,8 +58,8 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
     event AdminTokenRecovery(address tokenRecovered, uint256 amount);
     event Deposit(address indexed user, uint256 amount);
     event EmergencyWithdraw(address indexed user, uint256 amount);
-    event NewStartAndEndBlocks(uint256 startTime, uint256 endTime);
-    event NewRewardPerBlock(uint256 rewardPerSecond);
+    event NewStartAndEndTime(uint256 startTime, uint256 endTime);
+    event NewRewardPerSecond(uint256 rewardPerSecond);
     event NewPoolLimit(uint256 poolLimitPerUser);
     event RewardsStop(uint256 blockNumber);
     event Withdraw(address indexed user, uint256 amount);
@@ -243,10 +243,10 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
      * @dev Only callable by owner.
      * @param _rewardPerSecond: the reward per block
      */
-    function updateRewardPerBlock(uint256 _rewardPerSecond) external onlyOwner {
+    function updateRewardPerSecond(uint256 _rewardPerSecond) external onlyOwner {
         require(block.timestamp < startTime, "Pool has started");
         rewardPerSecond = _rewardPerSecond;
-        emit NewRewardPerBlock(_rewardPerSecond);
+        emit NewRewardPerSecond(_rewardPerSecond);
     }
 
     /**
@@ -255,7 +255,7 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
      * @param _startTime: the new start block
      * @param _bonusEndTime: the new end block
      */
-    function updateStartAndEndBlocks(uint256 _startTime, uint256 _bonusEndTime) external onlyOwner {
+    function updateStartAndEndTime(uint256 _startTime, uint256 _bonusEndTime) external onlyOwner {
         require(block.timestamp < startTime, "Pool has started");
         require(_startTime < _bonusEndTime, "New startTime must be lower than new endTime");
         require(block.timestamp < _startTime, "New startTime must be higher than current time");
@@ -266,7 +266,7 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
         // Set the lastRewardTime as the startTime
         lastRewardTime = startTime;
 
-        emit NewStartAndEndBlocks(_startTime, _bonusEndTime);
+        emit NewStartAndEndTime(_startTime, _bonusEndTime);
     }
 
     /*
