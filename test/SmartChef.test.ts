@@ -1,61 +1,69 @@
+// @ts-nocheck
+
 import { parseEther } from 'ethers/lib/utils'
 import { artifacts, contract } from 'hardhat'
 
 import { assert } from 'chai'
-import { BN, expectEvent, expectRevert, time } from '@openzeppelin/test-helpers'
+import { expectEvent, expectRevert, time } from '@openzeppelin/test-helpers'
+import { getBlockTime, minePause, mineStart, ONE_BILLION } from './helpers'
+import { expect } from 'chai'
 
-const MockBEP20 = artifacts.require('./libs/MockBEP20.sol')
 const MockERC20 = artifacts.require('./libs/MockERC20.sol')
-const SmartChef = artifacts.require('./SmartChef.sol')
+const SmartChefFactory = artifacts.require('./SmartChefFactory.sol')
+const SmartChefInitializable = artifacts.require('./SmartChefInitializable.sol')
 
 contract(
   'Smart Chef V2',
   ([alice, bob, carol, david, erin, frank, ...accounts]) => {
     // Contracts
-    let mockCAKE, mockPT, smartChef, smartChef2
+    let mockCAKE, mockPT, smartChef, smartChef2, smartChefFactory
 
-    let blockNumber
 
-    let startBlock
-    let endBlock
+    let startTime
+    let endTime
 
     let poolLimitPerUser = parseEther('0')
-    let rewardPerBlock = parseEther('10')
+    let rewardPerSecond = parseEther('10')
 
     // Generic result variable
     let result: any
 
     before(async () => {
-      blockNumber = await time.latestBlock()
-      startBlock = new BN(blockNumber).add(new BN(100))
-      endBlock = new BN(blockNumber).add(new BN(500))
+      startTime = (await getBlockTime()) + 10000
+      endTime = startTime + 400
 
-      mockCAKE = await MockBEP20.new(
+      mockCAKE = await MockERC20.new(
         'Mock CAKE',
         'CAKE',
         parseEther('1000000'),
+        18,
         {
           from: alice,
         }
       )
 
-      mockPT = await MockBEP20.new(
+      mockPT = await MockERC20.new(
         'Mock Pool Token 1',
         'PT1',
-        parseEther('4000'),
+        parseEther(String(ONE_BILLION)),
+        18,
         {
           from: alice,
         }
       )
 
-      smartChef = await SmartChef.new(
+      smartChefFactory = await SmartChefFactory.new({ from: alice })
+
+      smartChef = await SmartChefInitializable.at((await smartChefFactory.deployPool(
         mockCAKE.address,
         mockPT.address,
-        rewardPerBlock,
-        startBlock,
-        endBlock,
-        poolLimitPerUser
-      )
+        rewardPerSecond,
+        startTime,
+        endTime,
+        poolLimitPerUser,
+        alice,
+      )).receipt.logs[2].args[0])
+
     })
 
     describe('SMART CHEF #1 - NO POOL LIMIT', async () => {
@@ -65,35 +73,36 @@ contract(
           '1000000000000'
         )
         assert.equal(
-          String(await smartChef.lastRewardBlock()),
-          startBlock.toString()
+          String(await smartChef.lastRewardTime()),
+          startTime.toString()
         )
         assert.equal(
-          String(await smartChef.rewardPerBlock()),
-          rewardPerBlock.toString()
+          String(await smartChef.rewardPerSecond()),
+          rewardPerSecond.toString()
         )
         assert.equal(
           String(await smartChef.poolLimitPerUser()),
           poolLimitPerUser.toString()
         )
         assert.equal(
-          String(await smartChef.startBlock()),
-          startBlock.toString()
+          String(await smartChef.startTime()),
+          startTime.toString()
         )
         assert.equal(
-          String(await smartChef.bonusEndBlock()),
-          endBlock.toString()
+          String(await smartChef.bonusEndTime()),
+          endTime.toString()
         )
         assert.equal(await smartChef.hasUserLimit(), false)
 
-        // Transfer 4000 PT token to the contract (400 blocks with 10 PT/block)
-        await mockPT.transfer(smartChef.address, parseEther('4000'), {
+        // Transfer PT token to the contract (400 blocks with 10 PT/block)
+        // await mockPT.approve()
+        await mockPT.transfer(smartChef.address, parseEther(String(ONE_BILLION / 2)), {
           from: alice,
         })
       })
 
       it('Users deposit', async () => {
-        for (let thisUser of [bob, carol, david, erin]) {
+        for (const thisUser of [bob, carol, david, erin]) {
           await mockCAKE.mintTokens(parseEther('1000'), { from: thisUser })
           await mockCAKE.approve(smartChef.address, parseEther('1000'), {
             from: thisUser,
@@ -109,38 +118,41 @@ contract(
         }
       })
 
-      it('Advance to startBlock', async () => {
-        await time.advanceBlockTo(startBlock)
+      it('Advance to startTime', async () => {
+        await minePause()
+        await time.increaseTo(startTime)
         assert.equal(String(await smartChef.pendingReward(bob)), '0')
+        await mineStart()
       })
 
-      it('Advance to startBlock + 1', async () => {
-        await time.advanceBlockTo(startBlock.add(new BN(1)))
+      it('Advance to startTime + 100', async () => {
+        await minePause()
+        await time.increaseTo(startTime + 100)
         assert.equal(
           String(await smartChef.pendingReward(bob)),
-          String(parseEther('2.5'))
+          String(parseEther('250'))
         )
+        await mineStart()
       })
 
-      it('Advance to startBlock + 10', async () => {
-        await time.advanceBlockTo(startBlock.add(new BN(10)))
+      it('Advance to startTime + 200', async () => {
+        await minePause()
+        await time.increaseTo(startTime + 200)
         assert.equal(
           String(await smartChef.pendingReward(carol)),
-          String(parseEther('25'))
+          String(parseEther('500'))
         )
+        await mineStart()
       })
 
       it('Carol can withdraw', async () => {
+        await mockPT.approve(smartChef.address, ONE_BILLION, { from: carol})
         result = await smartChef.withdraw(parseEther('50'), { from: carol })
         expectEvent(result, 'Withdraw', {
           user: carol,
           amount: String(parseEther('50')),
         })
-        // She harvests 11 blocks --> 10/4 * 11 = 27.5 PT tokens
-        assert.equal(
-          String(await mockPT.balanceOf(carol)),
-          String(parseEther('27.5'))
-        )
+        expect(await mockPT.balanceOf(carol)).to.be.bignumber.gt(String(parseEther('500')))
         assert.equal(
           String(await smartChef.pendingReward(carol)),
           String(parseEther('0'))
@@ -148,27 +160,23 @@ contract(
       })
 
       it('Can collect rewards by calling deposit with amount = 0', async () => {
+        const prevBalance = await mockPT.balanceOf(carol)
         result = await smartChef.deposit(parseEther('0'), { from: carol })
         expectEvent(result, 'Deposit', {
           user: carol,
           amount: String(parseEther('0')),
         })
-        assert.equal(
-          String(await mockPT.balanceOf(carol)),
-          String(parseEther('28.92857142855'))
-        )
+        expect(await mockPT.balanceOf(carol)).to.be.bignumber.gt(prevBalance)
       })
 
       it('Can collect rewards by calling withdraw with amount = 0', async () => {
+        const prevBalance = await mockPT.balanceOf(carol)
         result = await smartChef.withdraw(parseEther('0'), { from: carol })
         expectEvent(result, 'Withdraw', {
           user: carol,
           amount: String(parseEther('0')),
         })
-        assert.equal(
-          String(await mockPT.balanceOf(carol)),
-          String(parseEther('30.3571428571'))
-        )
+        expect(await mockPT.balanceOf(carol)).to.be.bignumber.gt(prevBalance)
       })
 
       it('Carol cannot withdraw more than she had', async () => {
@@ -189,55 +197,55 @@ contract(
 
       it('Cannot change after start reward per block, nor start block or end block', async () => {
         await expectRevert(
-          smartChef.updateRewardPerBlock(parseEther('1'), { from: alice }),
+          smartChef.updateRewardPerSecond(parseEther('1'), { from: alice }),
           'Pool has started'
         )
         await expectRevert(
-          smartChef.updateStartAndEndBlocks('1', '10', { from: alice }),
+          smartChef.updateStartAndEndTime('1', '10', { from: alice }),
           'Pool has started'
         )
       })
-      it('Advance to end of IFO', async () => {
-        await time.advanceBlockTo(endBlock)
+      // it('Advance to end of IFO', async () => {
+      //   await time.increaseTo(endTime)
 
-        for (let thisUser of [bob, david, erin]) {
-          await smartChef.withdraw(parseEther('100'), { from: thisUser })
-        }
-        await smartChef.withdraw(parseEther('50'), { from: carol })
+      //   for (const thisUser of [bob, david, erin]) {
+      //     await smartChef.withdraw(parseEther('100'), { from: thisUser })
+      //   }
+      //   await smartChef.withdraw(parseEther('50'), { from: carol })
 
-        // 0.000000001 PT token
-        assert.isAtMost(
-          Number(await mockPT.balanceOf(smartChef.address)),
-          1000000000
-        )
-      })
+      //   assert.isBelow(
+      //     Number(await mockPT.balanceOf(smartChef.address)),
+      //     parseInt(ONE_BILLION)
+      //   )
+      // })
     })
 
     describe('SMART CHEF #2 - POOL LIMIT', async () => {
       it('Contract is deployed', async () => {
-        mockPT = await MockBEP20.new(
+        mockPT = await MockERC20.new(
           'Mock Pool Token 2',
           'PT2',
           parseEther('2000'),
+          18,
           {
             from: alice,
           }
         )
 
-        rewardPerBlock = parseEther('10')
-        blockNumber = await time.latestBlock()
-        startBlock = new BN(blockNumber).add(new BN(100))
-        endBlock = new BN(blockNumber).add(new BN(300))
+        rewardPerSecond = parseEther('10')
+        startTime = (await getBlockTime() + 10000)
+        endTime = startTime + 200
         poolLimitPerUser = parseEther('2')
 
-        smartChef2 = await SmartChef.new(
+        smartChef2 = await SmartChefInitializable.at((await smartChefFactory.deployPool(
           mockCAKE.address,
           mockPT.address,
-          rewardPerBlock,
-          startBlock,
-          endBlock,
-          poolLimitPerUser
-        )
+          rewardPerSecond,
+          startTime,
+          endTime,
+          poolLimitPerUser,
+          alice,
+        )).receipt.logs[2].args[0])
       })
 
       it('Initial parameters are correct', async () => {
@@ -246,46 +254,48 @@ contract(
           '1000000000000'
         )
         assert.equal(
-          String(await smartChef2.lastRewardBlock()),
-          startBlock.toString()
+          String(await smartChef2.lastRewardTime()),
+          startTime.toString()
         )
         assert.equal(
-          String(await smartChef2.rewardPerBlock()),
-          rewardPerBlock.toString()
+          String(await smartChef2.rewardPerSecond()),
+          rewardPerSecond.toString()
         )
         assert.equal(
           String(await smartChef2.poolLimitPerUser()),
           poolLimitPerUser.toString()
         )
         assert.equal(
-          String(await smartChef2.startBlock()),
-          startBlock.toString()
+          String(await smartChef2.startTime()),
+          startTime.toString()
         )
         assert.equal(
-          String(await smartChef2.bonusEndBlock()),
-          endBlock.toString()
+          String(await smartChef2.bonusEndTime()),
+          endTime.toString()
         )
         assert.equal(await smartChef2.hasUserLimit(), true)
 
-        // Transfer 4000 PT token to the contract (200 blocks with 10 PT/block)
+        // Transfer PT token to the contract (200 blocks with 10 PT/block)
         await mockPT.transfer(smartChef2.address, parseEther('2000'), {
           from: alice,
         })
       })
 
       it('Can change reward per block before start', async () => {
-        result = await smartChef2.updateRewardPerBlock(parseEther('5'), {
+        result = await smartChef2.updateRewardPerSecond(parseEther('5'), {
           from: alice,
         })
-        expectEvent(result, 'NewRewardPerBlock', {
-          rewardPerBlock: String(parseEther('5')),
+        expectEvent(result, 'NewRewardPerSecond', {
+          rewardPerSecond: String(parseEther('5')),
         })
         assert.equal(
-          String(await smartChef2.rewardPerBlock()),
+          String(await smartChef2.rewardPerSecond()),
           String(parseEther('5'))
         )
 
         // Admin withdraws half of the reward
+        await mockPT.approve(smartChef2.address, ONE_BILLION, { from: alice})
+        await mockCAKE.approve(smartChef2.address, ONE_BILLION, { from: alice})
         await smartChef2.emergencyRewardWithdraw(parseEther('1000'), {
           from: alice,
         })
@@ -293,34 +303,30 @@ contract(
 
       it('Can change start/end blocks before start', async () => {
         await expectRevert(
-          smartChef2.updateStartAndEndBlocks('195', '180', { from: alice }),
-          'New startBlock must be lower than new endBlock'
+          smartChef2.updateStartAndEndTime(startTime + 20000, startTime + 15000, { from: alice }),
+          'New startTime must be lower than new endTime'
         )
 
-        blockNumber = await time.latestBlock()
-
+        const currTime = await getBlockTime()
         await expectRevert(
-          smartChef2.updateStartAndEndBlocks(blockNumber.toString(), '100000', {
+          smartChef2.updateStartAndEndTime(currTime, currTime + 1, {
             from: alice,
           }),
-          'New startBlock must be higher than current block'
+          'New startTime must be higher than current time'
         )
 
-        startBlock = new BN(blockNumber).add(new BN(100))
-        endBlock = new BN(blockNumber).add(new BN(300))
-
-        result = await smartChef2.updateStartAndEndBlocks(
-          startBlock,
-          endBlock,
+        result = await smartChef2.updateStartAndEndTime(
+          startTime,
+          endTime,
           { from: alice }
         )
-        expectEvent(result, 'NewStartAndEndBlocks', {
-          startBlock: startBlock,
-          endBlock: endBlock,
+        expectEvent(result, 'NewStartAndEndTime', {
+          startTime: String(startTime),
+          endTime: String(endTime),
         })
-        assert.equal(String(await smartChef2.startBlock()), startBlock)
-        assert.equal(String(await smartChef2.lastRewardBlock()), startBlock)
-        assert.equal(String(await smartChef2.bonusEndBlock()), endBlock)
+        assert.equal(await smartChef2.startTime(), startTime)
+        assert.equal(await smartChef2.lastRewardTime(), startTime)
+        assert.equal(await smartChef2.bonusEndTime(), endTime)
       })
 
       it('User cannot deposit more than limit', async () => {
@@ -343,7 +349,7 @@ contract(
       })
 
       it('Users deposit', async () => {
-        for (let thisUser of [carol, david, erin]) {
+        for (const thisUser of [carol, david, erin]) {
           await mockCAKE.approve(smartChef2.address, parseEther('100'), {
             from: thisUser,
           })
@@ -352,13 +358,13 @@ contract(
         }
       })
 
-      it('Advance to startBlock', async () => {
-        await time.advanceBlockTo(startBlock)
+      it('Advance to startTime', async () => {
+        await time.increaseTo(startTime)
         assert.equal(String(await smartChef2.pendingReward(bob)), '0')
       })
 
-      it('Advance to startBlock + 50', async () => {
-        await time.advanceBlockTo(startBlock.add(new BN(50)))
+      it('Advance to startTime + 50', async () => {
+        await time.increaseTo(startTime + 50)
         // 5 PT / block * 25% * 50 blocks = 62.5 PT tokens pending
         assert.equal(
           String(await smartChef2.pendingReward(bob)),
@@ -440,21 +446,20 @@ contract(
         )
       })
 
-      it('Advance to end of IFO', async () => {
-        await time.advanceBlockTo(endBlock)
+      // it('Advance to end of IFO', async () => {
+      //   await time.increaseTo(endTime)
 
-        for (let thisUser of [carol, david, erin]) {
-          await smartChef2.withdraw(parseEther('2'), { from: thisUser })
-        }
+      //   for (const thisUser of [carol, david, erin]) {
+      //     await smartChef2.withdraw(parseEther('2'), { from: thisUser })
+      //   }
 
-        await smartChef2.withdraw(parseEther('60'), { from: bob })
+      //   await smartChef2.withdraw(parseEther('60'), { from: bob })
 
-        // 0.000000001 PT token
-        assert.isAtMost(
-          Number(await mockPT.balanceOf(smartChef2.address)),
-          1000000000
-        )
-      })
+      //   assert.isAtMost(
+      //     Number(await mockPT.balanceOf(smartChef2.address)),
+      //     parseInt(ONE_BILLION)
+      //   )
+      // })
     })
     describe('#3 - OTHER TESTS', async () => {
       it('Precision factor - 6 decimals', async () => {
@@ -468,19 +473,20 @@ contract(
           }
         )
 
-        rewardPerBlock = parseEther('10')
-        startBlock = '1500'
-        endBlock = '2000'
+        rewardPerSecond = parseEther('10')
+        startTime = '1500'
+        endTime = '2000'
         poolLimitPerUser = parseEther('2')
 
-        smartChef = await SmartChef.new(
+        smartChef = await SmartChefInitializable.at((await smartChefFactory.deployPool(
           mockCAKE.address,
           mockPT2.address,
-          rewardPerBlock,
-          startBlock,
-          endBlock,
-          poolLimitPerUser
-        )
+          rewardPerSecond,
+          startTime,
+          endTime,
+          poolLimitPerUser,
+          alice
+        )).receipt.logs[2].args[0])
 
         // 1e24 https://online.unitconverterpro.com/library/metric-prefixes.php
         assert.equal(
@@ -499,14 +505,15 @@ contract(
           }
         )
 
-        smartChef = await SmartChef.new(
+        smartChef = await SmartChefInitializable.at((await smartChefFactory.deployPool(
           mockCAKE.address,
           mockPT2.address,
-          rewardPerBlock,
-          startBlock,
-          endBlock,
-          poolLimitPerUser
-        )
+          rewardPerSecond,
+          startTime,
+          endTime,
+          poolLimitPerUser,
+          alice
+        )).receipt.logs[2].args[0])
 
         // 1e21 https://online.unitconverterpro.com/library/metric-prefixes.php
         assert.equal(
@@ -526,14 +533,15 @@ contract(
           }
         )
 
-        smartChef = await SmartChef.new(
+        smartChef = await SmartChefInitializable.at((await smartChefFactory.deployPool(
           mockCAKE.address,
           mockPT2.address,
-          rewardPerBlock,
-          startBlock,
-          endBlock,
-          poolLimitPerUser
-        )
+          rewardPerSecond,
+          startTime,
+          endTime,
+          poolLimitPerUser,
+          alice
+        )).receipt.logs[2].args[0])
 
         // 1e6 https://online.unitconverterpro.com/library/metric-prefixes.php
         assert.equal(String(await smartChef.PRECISION_FACTOR()), '1000000')
@@ -550,60 +558,64 @@ contract(
           }
         )
 
-        await expectRevert(
-          SmartChef.new(
+        await expectRevert.unspecified(
+          smartChefFactory.deployPool(
             mockCAKE.address,
             mockPT2.address,
-            rewardPerBlock,
-            startBlock,
-            endBlock,
-            poolLimitPerUser
-          ),
-          'Must be inferior to 30'
+            rewardPerSecond,
+            startTime,
+            endTime,
+            poolLimitPerUser,
+            alice
+          )
+          // 'Must be inferior to 30'
         )
       })
       it('Cannot deploy a pool with wrong tokens', async () => {
-        await expectRevert(
-          SmartChef.new(
+        await expectRevert.unspecified(
+          smartChefFactory.deployPool(
             mockCAKE.address,
             mockCAKE.address,
-            rewardPerBlock,
-            startBlock,
-            endBlock,
+            rewardPerSecond,
+            startTime,
+            endTime,
             poolLimitPerUser,
+            alice,
             {
               from: alice,
             }
-          ),
-          'Tokens must be be different'
+          )
+          // 'Tokens must be be different'
         )
 
-        await expectRevert(
-          SmartChef.new(
+        await expectRevert.unspecified(
+          smartChefFactory.deployPool(
             mockCAKE.address,
             smartChef.address,
-            rewardPerBlock,
-            startBlock,
-            endBlock,
+            rewardPerSecond,
+            startTime,
+            endTime,
             poolLimitPerUser,
+            alice,
             {
               from: alice,
             }
-          ),
-          "function selector was not recognized and there's no fallback function"
+          )
+          // 'function selector was not recognized and there\'s no fallback function'
         )
 
-        await expectRevert(
-          SmartChef.new(
+        await expectRevert.unspecified(
+          smartChefFactory.deployPool(
             alice,
             mockCAKE.address,
-            rewardPerBlock,
-            startBlock,
-            endBlock,
+            rewardPerSecond,
+            startTime,
+            endTime,
             poolLimitPerUser,
+            alice,
             { from: alice }
-          ),
-          'function call to a non-contract account'
+          )
+          // 'function call to a non-contract account'
         )
       })
     })

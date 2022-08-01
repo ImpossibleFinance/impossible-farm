@@ -84,7 +84,7 @@
         "type": "uint256"
       }
     ],
-    "name": "NewRewardPerBlock",
+    "name": "NewRewardPerSecond",
     "type": "event"
   },
   {
@@ -103,7 +103,7 @@
         "type": "uint256"
       }
     ],
-    "name": "NewStartAndEndBlocks",
+    "name": "NewStartAndEndTime",
     "type": "event"
   },
   {
@@ -258,12 +258,12 @@
   {
     "inputs": [
       {
-        "internalType": "contract IBEP20",
+        "internalType": "contract IERC20",
         "name": "_stakedToken",
         "type": "address"
       },
       {
-        "internalType": "contract IBEP20",
+        "internalType": "contract IERC20",
         "name": "_rewardToken",
         "type": "address"
       },
@@ -412,7 +412,7 @@
     "name": "rewardToken",
     "outputs": [
       {
-        "internalType": "contract IBEP20",
+        "internalType": "contract IERC20",
         "name": "",
         "type": "address"
       }
@@ -425,7 +425,7 @@
     "name": "stakedToken",
     "outputs": [
       {
-        "internalType": "contract IBEP20",
+        "internalType": "contract IERC20",
         "name": "",
         "type": "address"
       }
@@ -492,7 +492,7 @@
         "type": "uint256"
       }
     ],
-    "name": "updateRewardPerBlock",
+    "name": "updateRewardPerSecond",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -510,7 +510,7 @@
         "type": "uint256"
       }
     ],
-    "name": "updateStartAndEndBlocks",
+    "name": "updateStartAndEndTime",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

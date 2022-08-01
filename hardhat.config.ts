@@ -1,7 +1,7 @@
 import '@nomiclabs/hardhat-waffle'
 import '@nomiclabs/hardhat-etherscan'
 import '@nomiclabs/hardhat-web3'
-import 'hardhat-tracer'
+import '@nomiclabs/hardhat-truffle5'
 // import 'hardhat-gas-reporter'
 // import 'hardhat-ethernal'
 import dotenv from 'dotenv'

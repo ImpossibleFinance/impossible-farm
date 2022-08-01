@@ -1,14 +1,14 @@
 import { ethers, network } from 'hardhat'
 import { parseEther } from 'ethers/lib/utils'
 
-const config = require('../config')
+import config from '../config'
 const currentNetwork = network.name
 
 async function main() {
   if (currentNetwork == 'mainnet') {
     if (!process.env.KEY_MAINNET) {
       throw new Error(
-        "Missing private key, refer to README 'Deployment' section"
+        'Missing private key, refer to README \'Deployment\' section'
       )
     }
     if (
@@ -17,7 +17,7 @@ async function main() {
         '0x0000000000000000000000000000000000000000'
     ) {
       throw new Error(
-        "Missing admin address, refer to README 'Deployment' section"
+        'Missing admin address, refer to README \'Deployment\' section'
       )
     }
   }
