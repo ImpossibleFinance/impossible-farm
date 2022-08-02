@@ -9,11 +9,11 @@ import '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import './libs/IERC20Extended.sol';
 
 contract SmartChefInitializable is Ownable, ReentrancyGuard {
-    using SafeMath for uint256;
     using SafeERC20 for IERC20;
+    using SafeERC20 for IERC20Extended;
 
     // The address of the smart chef factory
-    address public SMART_CHEF_FACTORY;
+    address public immutable SMART_CHEF_FACTORY;
 
     // Whether a limit is set for users
     bool public hasUserLimit;
@@ -107,7 +107,7 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
         uint256 decimalsRewardToken = uint256(rewardToken.decimals());
         require(decimalsRewardToken < 30, "Must be inferior to 30");
 
-        PRECISION_FACTOR = uint256(10**(uint256(30).sub(decimalsRewardToken)));
+        PRECISION_FACTOR = 10**(30 - decimalsRewardToken);
 
         // Set the lastRewardTime as the startTime
         lastRewardTime = startTime;
@@ -124,24 +124,24 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
         UserInfo storage user = userInfo[msg.sender];
 
         if (hasUserLimit) {
-            require(_amount.add(user.amount) <= poolLimitPerUser, "User amount above limit");
+            require(_amount + user.amount <= poolLimitPerUser, "User amount above limit");
         }
 
         _updatePool();
 
         if (user.amount > 0) {
-            uint256 pending = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
+            uint256 pending = (user.amount * accTokenPerShare / PRECISION_FACTOR) - user.rewardDebt;
             if (pending > 0) {
-                require(rewardToken.transfer(address(msg.sender), pending), "Transfer failed");
+                rewardToken.transfer(msg.sender, pending);
             }
         }
 
         if (_amount > 0) {
-            user.amount = user.amount.add(_amount);
-            stakedToken.safeTransferFrom(address(msg.sender), address(this), _amount);
+            user.amount = user.amount + _amount;
+            stakedToken.safeTransferFrom(msg.sender, address(this), _amount);
         }
 
-        user.rewardDebt = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR);
+        user.rewardDebt = user.amount * accTokenPerShare / PRECISION_FACTOR;
 
         emit Deposit(msg.sender, _amount);
     }
@@ -156,18 +156,18 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
 
         _updatePool();
 
-        uint256 pending = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
+        uint256 pending = (user.amount * accTokenPerShare / PRECISION_FACTOR) - user.rewardDebt;
 
         if (_amount > 0) {
-            user.amount = user.amount.sub(_amount);
-            stakedToken.safeTransfer(address(msg.sender), _amount);
+            user.amount = user.amount - _amount;
+            stakedToken.safeTransfer(msg.sender, _amount);
         }
 
         if (pending > 0) {
-            require(rewardToken.transfer(address(msg.sender), pending), "Transfer failed");
+            rewardToken.transfer(msg.sender, pending);
         }
 
-        user.rewardDebt = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR);
+        user.rewardDebt = user.amount * accTokenPerShare / PRECISION_FACTOR;
 
         emit Withdraw(msg.sender, _amount);
     }
@@ -183,7 +183,7 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
         user.rewardDebt = 0;
 
         if (amountToTransfer > 0) {
-            stakedToken.safeTransfer(address(msg.sender), amountToTransfer);
+            stakedToken.safeTransfer(msg.sender, amountToTransfer);
         }
 
         emit EmergencyWithdraw(msg.sender, user.amount);
@@ -194,7 +194,7 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
      * @dev Only callable by owner. Needs to be for emergency.
      */
     function emergencyRewardWithdraw(uint256 _amount) external onlyOwner {
-        require(rewardToken.transfer(address(msg.sender), _amount), "Transfer failed");
+        rewardToken.transfer(msg.sender, _amount);
     }
 
     /**
@@ -207,7 +207,7 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
         require(_tokenAddress != address(stakedToken), "Cannot be staked token");
         require(_tokenAddress != address(rewardToken), "Cannot be reward token");
 
-        IERC20(_tokenAddress).safeTransfer(address(msg.sender), _tokenAmount);
+        IERC20(_tokenAddress).safeTransfer(msg.sender, _tokenAmount);
 
         emit AdminTokenRecovery(_tokenAddress, _tokenAmount);
     }
@@ -279,13 +279,13 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
         uint256 stakedTokenSupply = stakedToken.balanceOf(address(this));
         if (block.timestamp > lastRewardTime && stakedTokenSupply != 0) {
             uint256 multiplier = _getMultiplier(lastRewardTime, block.timestamp);
-            uint256 cakeReward = multiplier.mul(rewardPerSecond);
-            uint256 adjustedTokenPerShare = accTokenPerShare.add(
-                cakeReward.mul(PRECISION_FACTOR).div(stakedTokenSupply)
+            uint256 cakeReward = multiplier * rewardPerSecond;
+            uint256 adjustedTokenPerShare = accTokenPerShare + (
+                cakeReward * PRECISION_FACTOR / stakedTokenSupply
             );
-            return user.amount.mul(adjustedTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
+            return (user.amount * (adjustedTokenPerShare) / PRECISION_FACTOR) - user.rewardDebt;
         } else {
-            return user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
+            return (user.amount * accTokenPerShare / PRECISION_FACTOR) - user.rewardDebt;
         }
     }
 
@@ -305,8 +305,8 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
         }
 
         uint256 multiplier = _getMultiplier(lastRewardTime, block.timestamp);
-        uint256 cakeReward = multiplier.mul(rewardPerSecond);
-        accTokenPerShare = accTokenPerShare.add(cakeReward.mul(PRECISION_FACTOR).div(stakedTokenSupply));
+        uint256 cakeReward = multiplier * rewardPerSecond;
+        accTokenPerShare = accTokenPerShare + (cakeReward * PRECISION_FACTOR / stakedTokenSupply);
         lastRewardTime = block.timestamp;
     }
 
@@ -317,11 +317,11 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
      */
     function _getMultiplier(uint256 _from, uint256 _to) internal view returns (uint256) {
         if (_to <= bonusEndTime) {
-            return _to.sub(_from);
+            return _to - _from;
         } else if (_from >= bonusEndTime) {
             return 0;
         } else {
-            return bonusEndTime.sub(_from);
+            return bonusEndTime - _from;
         }
     }
 }
