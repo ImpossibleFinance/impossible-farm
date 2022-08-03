@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.15;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import '@openzeppelin/contracts/security/ReentrancyGuard.sol';
@@ -130,7 +130,7 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
         if (user.amount > 0) {
             uint256 pending = (user.amount * accTokenPerShare / PRECISION_FACTOR) - user.rewardDebt;
             if (pending > 0) {
-                rewardToken.transfer(msg.sender, pending);
+                rewardToken.safeTransfer(msg.sender, pending);
             }
         }
 
@@ -162,7 +162,7 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
         }
 
         if (pending > 0) {
-            rewardToken.transfer(msg.sender, pending);
+            rewardToken.safeTransfer(msg.sender, pending);
         }
 
         user.rewardDebt = user.amount * accTokenPerShare / PRECISION_FACTOR;
@@ -192,7 +192,7 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
      * @dev Only callable by owner. Needs to be for emergency.
      */
     function emergencyRewardWithdraw(uint256 _amount) external onlyOwner {
-        rewardToken.transfer(msg.sender, _amount);
+        rewardToken.safeTransfer(msg.sender, _amount);
     }
 
     /**
