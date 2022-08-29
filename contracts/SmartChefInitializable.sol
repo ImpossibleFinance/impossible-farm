@@ -120,9 +120,10 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
      */
     function deposit(uint256 _amount) external nonReentrant {
         UserInfo storage user = userInfo[msg.sender];
+        uint256 amount = _amount;
 
         if (hasUserLimit) {
-            require(_amount + user.amount <= poolLimitPerUser, "User amount above limit");
+            require(amount + user.amount <= poolLimitPerUser, "User amount above limit");
         }
 
         _updatePool();
@@ -130,18 +131,22 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
         if (user.amount > 0) {
             uint256 pending = (user.amount * accTokenPerShare / PRECISION_FACTOR) - user.rewardDebt;
             if (pending > 0) {
+                // check balance before and after to support deflationary token
+                uint256 beforeBalance = rewardToken.balanceOf(address(this));
                 rewardToken.safeTransfer(msg.sender, pending);
+                uint256 afterBalance = rewardToken.balanceOf(address(this));
+                amount = beforeBalance - afterBalance;
             }
         }
 
         if (_amount > 0) {
-            user.amount = user.amount + _amount;
-            stakedToken.safeTransferFrom(msg.sender, address(this), _amount);
+            user.amount = user.amount + amount;
+            stakedToken.safeTransferFrom(msg.sender, address(this), amount);
         }
 
         user.rewardDebt = user.amount * accTokenPerShare / PRECISION_FACTOR;
 
-        emit Deposit(msg.sender, _amount);
+        emit Deposit(msg.sender, amount);
     }
 
     /*
