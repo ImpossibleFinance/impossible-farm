@@ -131,17 +131,16 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
         if (user.amount > 0) {
             uint256 pending = (user.amount * accTokenPerShare / PRECISION_FACTOR) - user.rewardDebt;
             if (pending > 0) {
-                // check balance before and after to support deflationary token
-                uint256 beforeBalance = rewardToken.balanceOf(address(this));
                 rewardToken.safeTransfer(msg.sender, pending);
-                uint256 afterBalance = rewardToken.balanceOf(address(this));
-                amount = beforeBalance - afterBalance;
             }
         }
 
         if (_amount > 0) {
-            user.amount = user.amount + amount;
+            // check balance before and after to support deflationary token
+            uint256 beforeBalance = stakedToken.balanceOf(address(this));
             stakedToken.safeTransferFrom(msg.sender, address(this), amount);
+            amount = beforeBalance - stakedToken.balanceOf(address(this));
+            user.amount = user.amount + amount;
         }
 
         user.rewardDebt = user.amount * accTokenPerShare / PRECISION_FACTOR;
@@ -155,6 +154,7 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
      */
     function withdraw(uint256 _amount) external nonReentrant {
         UserInfo storage user = userInfo[msg.sender];
+        uint256 amount = _amount;
         require(user.amount >= _amount, "Amount to withdraw too high");
 
         _updatePool();
@@ -162,8 +162,11 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
         uint256 pending = (user.amount * accTokenPerShare / PRECISION_FACTOR) - user.rewardDebt;
 
         if (_amount > 0) {
-            user.amount = user.amount - _amount;
+            // check balance before and after to support deflationary token
+            uint256 beforeBalance = stakedToken.balanceOf(address(this));
             stakedToken.safeTransfer(msg.sender, _amount);
+            amount = beforeBalance - stakedToken.balanceOf(address(this));
+            user.amount = user.amount - amount;
         }
 
         if (pending > 0) {
@@ -172,7 +175,7 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
 
         user.rewardDebt = user.amount * accTokenPerShare / PRECISION_FACTOR;
 
-        emit Withdraw(msg.sender, _amount);
+        emit Withdraw(msg.sender, amount);
     }
 
     /*
