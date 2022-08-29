@@ -70,7 +70,7 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
      * @notice Initialize the contract
      * @param _stakedToken: staked token address
      * @param _rewardToken: reward token address
-     * @param _rewardPerSecond: reward per minute (in rewardToken)
+     * @param _rewardPerSecond: reward per second (in rewardToken)
      * @param _startTime: start time
      * @param _bonusEndTime: end time
      * @param _poolLimitPerUser: pool limit per user in stakedToken (if any, else 0)
@@ -237,9 +237,9 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
     }
 
     /*
-     * @notice Update reward per block
+     * @notice Update reward per second
      * @dev Only callable by owner.
-     * @param _rewardPerSecond: the reward per block
+     * @param _rewardPerSecond: the reward per second
      */
     function updateRewardPerSecond(uint256 _rewardPerSecond) external onlyOwner {
         require(block.timestamp < startTime, "Pool has started");
@@ -248,10 +248,10 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice It allows the admin to update start and end blocks
+     * @notice It allows the admin to update start and end time
      * @dev This function is only callable by owner.
-     * @param _startTime: the new start block
-     * @param _bonusEndTime: the new end block
+     * @param _startTime: the new start time
+     * @param _bonusEndTime: the new end time
      */
     function updateStartAndEndTime(uint256 _startTime, uint256 _bonusEndTime) external onlyOwner {
         require(block.timestamp < startTime, "Pool has started");
@@ -309,9 +309,9 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
     }
 
     /*
-     * @notice Return reward multiplier over the given _from to _to block.
-     * @param _from: block to start
-     * @param _to: block to finish
+     * @notice Return reward multiplier over the given _from to _to time.
+     * @param _from: time to start
+     * @param _to: time to finish
      */
     function _getMultiplier(uint256 _from, uint256 _to) internal view returns (uint256) {
         if (_to <= bonusEndTime) {
