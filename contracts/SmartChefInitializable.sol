@@ -70,7 +70,7 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
      * @notice Initialize the contract
      * @param _stakedToken: staked token address
      * @param _rewardToken: reward token address
-     * @param _rewardPerSecond: reward per minute (in rewardToken)
+     * @param _rewardPerSecond: reward per second (in rewardToken)
      * @param _startTime: start time
      * @param _bonusEndTime: end time
      * @param _poolLimitPerUser: pool limit per user in stakedToken (if any, else 0)
@@ -120,9 +120,10 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
      */
     function deposit(uint256 _amount) external nonReentrant {
         UserInfo storage user = userInfo[msg.sender];
+        uint256 amount = _amount;
 
         if (hasUserLimit) {
-            require(_amount + user.amount <= poolLimitPerUser, "User amount above limit");
+            require(amount + user.amount <= poolLimitPerUser, "User amount above limit");
         }
 
         _updatePool();
@@ -135,13 +136,16 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
         }
 
         if (_amount > 0) {
-            user.amount = user.amount + _amount;
-            stakedToken.safeTransferFrom(msg.sender, address(this), _amount);
+            // check balance before and after to support deflationary token
+            uint256 beforeBalance = stakedToken.balanceOf(address(this));
+            stakedToken.safeTransferFrom(msg.sender, address(this), amount);
+            amount = beforeBalance - stakedToken.balanceOf(address(this));
+            user.amount = user.amount + amount;
         }
 
         user.rewardDebt = user.amount * accTokenPerShare / PRECISION_FACTOR;
 
-        emit Deposit(msg.sender, _amount);
+        emit Deposit(msg.sender, amount);
     }
 
     /*
@@ -150,6 +154,7 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
      */
     function withdraw(uint256 _amount) external nonReentrant {
         UserInfo storage user = userInfo[msg.sender];
+        uint256 amount = _amount;
         require(user.amount >= _amount, "Amount to withdraw too high");
 
         _updatePool();
@@ -157,8 +162,11 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
         uint256 pending = (user.amount * accTokenPerShare / PRECISION_FACTOR) - user.rewardDebt;
 
         if (_amount > 0) {
-            user.amount = user.amount - _amount;
+            // check balance before and after to support deflationary token
+            uint256 beforeBalance = stakedToken.balanceOf(address(this));
             stakedToken.safeTransfer(msg.sender, _amount);
+            amount = beforeBalance - stakedToken.balanceOf(address(this));
+            user.amount = user.amount - amount;
         }
 
         if (pending > 0) {
@@ -167,7 +175,7 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
 
         user.rewardDebt = user.amount * accTokenPerShare / PRECISION_FACTOR;
 
-        emit Withdraw(msg.sender, _amount);
+        emit Withdraw(msg.sender, amount);
     }
 
     /*
@@ -237,9 +245,9 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
     }
 
     /*
-     * @notice Update reward per block
+     * @notice Update reward per second
      * @dev Only callable by owner.
-     * @param _rewardPerSecond: the reward per block
+     * @param _rewardPerSecond: the reward per second
      */
     function updateRewardPerSecond(uint256 _rewardPerSecond) external onlyOwner {
         require(block.timestamp < startTime, "Pool has started");
@@ -248,10 +256,10 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice It allows the admin to update start and end blocks
+     * @notice It allows the admin to update start and end time
      * @dev This function is only callable by owner.
-     * @param _startTime: the new start block
-     * @param _bonusEndTime: the new end block
+     * @param _startTime: the new start time
+     * @param _bonusEndTime: the new end time
      */
     function updateStartAndEndTime(uint256 _startTime, uint256 _bonusEndTime) external onlyOwner {
         require(block.timestamp < startTime, "Pool has started");
@@ -309,9 +317,9 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
     }
 
     /*
-     * @notice Return reward multiplier over the given _from to _to block.
-     * @param _from: block to start
-     * @param _to: block to finish
+     * @notice Return reward multiplier over the given _from to _to time.
+     * @param _from: time to start
+     * @param _to: time to finish
      */
     function _getMultiplier(uint256 _from, uint256 _to) internal view returns (uint256) {
         if (_to <= bonusEndTime) {

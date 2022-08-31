@@ -17,9 +17,9 @@ contract SmartChefFactory is Ownable {
      * @notice Deploy the pool
      * @param _stakedToken: staked token address
      * @param _rewardToken: reward token address
-     * @param _rewardPerBlock: reward per block (in rewardToken)
-     * @param _startBlock: start block
-     * @param _endBlock: end block
+     * @param _rewardPerSecond: reward per second (in rewardToken)
+     * @param _startTime: start time
+     * @param _endTime: end time
      * @param _poolLimitPerUser: pool limit per user in stakedToken (if any, else 0)
      * @param _admin: admin address with ownership
      * @return address of new smart chef contract
@@ -27,9 +27,9 @@ contract SmartChefFactory is Ownable {
     function deployPool(
         IERC20 _stakedToken,
         IERC20Extended _rewardToken,
-        uint256 _rewardPerBlock,
-        uint256 _startBlock,
-        uint256 _bonusEndBlock,
+        uint256 _rewardPerSecond,
+        uint256 _startTime,
+        uint256 _bonusEndTime,
         uint256 _poolLimitPerUser,
         address _admin
     ) external onlyOwner {
@@ -38,7 +38,7 @@ contract SmartChefFactory is Ownable {
         require(_stakedToken != _rewardToken, "Tokens must be be different");
 
         bytes memory bytecode = type(SmartChefInitializable).creationCode;
-        bytes32 salt = keccak256(abi.encodePacked(_stakedToken, _rewardToken, _startBlock));
+        bytes32 salt = keccak256(abi.encodePacked(_stakedToken, _rewardToken, _startTime));
         address smartChefAddress;
 
         assembly {
@@ -48,9 +48,9 @@ contract SmartChefFactory is Ownable {
         SmartChefInitializable(smartChefAddress).initialize(
             _stakedToken,
             _rewardToken,
-            _rewardPerBlock,
-            _startBlock,
-            _bonusEndBlock,
+            _rewardPerSecond,
+            _startTime,
+            _bonusEndTime,
             _poolLimitPerUser,
             _admin
         );
