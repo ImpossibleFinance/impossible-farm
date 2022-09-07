@@ -139,7 +139,7 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
             // check balance before and after to support deflationary token
             uint256 beforeBalance = stakedToken.balanceOf(address(this));
             stakedToken.safeTransferFrom(msg.sender, address(this), amount);
-            amount = beforeBalance - stakedToken.balanceOf(address(this));
+            amount = stakedToken.balanceOf(address(this)) - beforeBalance;
             user.amount = user.amount + amount;
         }
 

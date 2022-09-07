@@ -2,7 +2,7 @@ name: Slither Analysis
 
 on:
   pull_request:
-    branches: [ '*' ]
+    branches: [master]
 
 jobs:
   analyze:
