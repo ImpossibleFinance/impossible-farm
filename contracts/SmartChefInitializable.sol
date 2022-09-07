@@ -22,10 +22,10 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
     // Accrued token per share
     uint256 public accTokenPerShare;
 
-    // The time when CAKE mining ends.
+    // The time when reward mining ends.
     uint256 public bonusEndTime;
 
-    // The time when CAKE mining starts.
+    // The time when reward mining starts.
     uint256 public startTime;
 
     // The time of the last pool update
@@ -285,9 +285,9 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
         uint256 stakedTokenSupply = stakedToken.balanceOf(address(this));
         if (block.timestamp > lastRewardTime && stakedTokenSupply != 0) {
             uint256 multiplier = _getMultiplier(lastRewardTime, block.timestamp);
-            uint256 cakeReward = multiplier * rewardPerSecond;
+            uint256 reward = multiplier * rewardPerSecond;
             uint256 adjustedTokenPerShare = accTokenPerShare + (
-                cakeReward * PRECISION_FACTOR / stakedTokenSupply
+                reward * PRECISION_FACTOR / stakedTokenSupply
             );
             return (user.amount * (adjustedTokenPerShare) / PRECISION_FACTOR) - user.rewardDebt;
         } else {
@@ -311,8 +311,8 @@ contract SmartChefInitializable is Ownable, ReentrancyGuard {
         }
 
         uint256 multiplier = _getMultiplier(lastRewardTime, block.timestamp);
-        uint256 cakeReward = multiplier * rewardPerSecond;
-        accTokenPerShare = accTokenPerShare + (cakeReward * PRECISION_FACTOR / stakedTokenSupply);
+        uint256 reward = multiplier * rewardPerSecond;
+        accTokenPerShare = accTokenPerShare + (reward * PRECISION_FACTOR / stakedTokenSupply);
         lastRewardTime = block.timestamp;
     }
 
